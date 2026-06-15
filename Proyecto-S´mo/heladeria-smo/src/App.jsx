@@ -1,5 +1,4 @@
 import { useState } from 'react'
-
 // Fotos reales desde tu carpeta assets
 import bannerVitrina from './assets/vitrina-principal-1.jpeg'
 import fotoPotesReal from './assets/potes-helado.jpeg'
@@ -12,13 +11,15 @@ export default function App() {
   // Controles de interfaz
   const [categoriaGustoAbierta, setCategoriaGustoAbierta] = useState(null)
   const [categoriaExtraAbierta, setCategoriaExtraAbierta] = useState(null)
-  const [cantidadPote, setCantidadPote] = useState(1) // Nuevo selector de cantidad pre-carrito
+  const [cantidadPote, setCantidadPote] = useState(1)
+  const [esSegundaPartePromo, setEsSegundaPartePromo] = useState(false);
   
   // LOGÍSTICA
-  const [metodoEntrega, setMetodoEntrega] = useState('Local') // 'Local' o 'Delivery'
+  const [metodoEntrega, setMetodoEntrega] = useState('Local')
+  const [direccion, setDireccion] = useState('') // ¡Agregado!
 
   // =========================================================================
-  // 1. POTES (Precios Reales)
+  // 1. POTES
   // =========================================================================
   const opcionesPotes = [
     { id: '2kg_promo', nombre: 'PROMO 2 Kilos (Efectivo)', limite: 4, precio: 37400, detalle: '4 gustos por pote. Efectivo.' },
@@ -30,7 +31,7 @@ export default function App() {
   ]
 
   // =========================================================================
-  // 2. GUSTOS CON DESCRIPCIONES TENTADORAS
+  // 2. GUSTOS
   // =========================================================================
   const listadoGustos = {
     'CHOCOLATES': [
@@ -53,7 +54,7 @@ export default function App() {
       { nombre: 'Chocolate Dubai (Nuevo)', desc: 'Cacao premium con pistacho y kinefe crocante.' }, 
       { nombre: 'Mousse de Chocolate', desc: 'Textura aireada, suave y profunda.' }
     ],
-    'DULCES DE LECHE': [
+    'DULCE DE LECHES': [
       { nombre: 'Dulce De Leche', desc: 'El clásico argentino, textura lisa y brillante.' }, 
       { nombre: 'Dulce De Leche Borguese', desc: 'Receta italiana extra cremosa.' }, 
       { nombre: 'Dulce De Leche Brownie', desc: 'Con trozos húmedos de brownie artesanal.' },
@@ -164,8 +165,12 @@ export default function App() {
   }
 
   // =========================================================================
-  // FUNCIONES DE CARRITO (Blindaje contra NaN y sumador múltiple)
+  // FUNCIONES DE CARRITO Y LOGÍSTICA
   // =========================================================================
+  const calcularTotal = () => {
+    return carrito.reduce((total, item) => total + (item.precio * (item.cantidad || 1)), 0);
+  };
+
   const seleccionarGusto = (nombreGusto) => {
     if (!poteSeleccionado) return
 
@@ -181,54 +186,74 @@ export default function App() {
   }
 
   const agregarPoteAlCarrito = () => {
-  if (!poteSeleccionado || gustosSeleccionados.length === 0) return;
+    if (!poteSeleccionado || gustosSeleccionados.length === 0) return;
 
-  // NUEVA LÓGICA: Si es la promo 1/4+1/4, verificamos si ya completamos los gustos
-  // (Esto requiere un pequeño ajuste que te pediré hacer más adelante)
-  
-  setCarrito(prev => {
-    const gustosStr = [...gustosSeleccionados].sort().join(',');
-    const indexExistente = prev.findIndex(item => 
-      item.nombre === poteSeleccionado.nombre && 
-      item.tipo === 'Pote' &&
-      [...item.gustos].sort().join(',') === gustosStr
-    );
+    setCarrito(prev => {
+      const gustosStr = [...gustosSeleccionados].sort().join(',');
+      const indexExistente = prev.findIndex(item => 
+        item.nombre === poteSeleccionado.nombre && 
+        item.tipo === 'Pote' &&
+        [...item.gustos].sort().join(',') === gustosStr
+      );
 
-    if (indexExistente !== -1) {
-      const nuevoCarrito = [...prev];
-      nuevoCarrito[indexExistente] = { 
-        ...nuevoCarrito[indexExistente], 
-        cantidad: (nuevoCarrito[indexExistente].cantidad || 1) + cantidadPote 
-      };
-      return nuevoCarrito;
-    } else {
-      const nuevoItem = { 
-        id: Date.now().toString() + Math.random().toString(), 
-        tipo: 'Pote', 
-        nombre: poteSeleccionado.nombre, 
-        precio: poteSeleccionado.precio, 
-        cantidad: cantidadPote, 
-        gustos: gustosSeleccionados 
-      };
-      return [...prev, nuevoItem];
+      if (indexExistente !== -1) {
+        const nuevoCarrito = [...prev];
+        nuevoCarrito[indexExistente] = { 
+          ...nuevoCarrito[indexExistente], 
+          cantidad: (nuevoCarrito[indexExistente].cantidad || 1) + cantidadPote 
+        };
+        return nuevoCarrito;
+     } else {
+        // Buscamos si ya existe una promo incompleta en el carrito
+        const indexPromoPendiente = prev.findIndex(item => 
+            item.tipo === 'Pote' && 
+            item.nombre === poteSeleccionado.nombre && 
+            item.gustos.length < (poteSeleccionado.limite || 4)
+        );
+
+        if (indexPromoPendiente !== -1) {
+            // Si existe, le sumamos los gustos nuevos al mismo item
+            const nuevoCarrito = [...prev];
+            nuevoCarrito[indexPromoPendiente] = {
+                ...nuevoCarrito[indexPromoPendiente],
+                gustos: [...nuevoCarrito[indexPromoPendiente].gustos, ...gustosSeleccionados]
+            };
+            return nuevoCarrito;
+        } else {
+            // Si no existe, creamos el item nuevo normalmente
+            const nuevoItem = { 
+                id: Date.now().toString() + Math.random().toString(), 
+                tipo: 'Pote', 
+                nombre: poteSeleccionado.nombre, 
+                precio: poteSeleccionado.precio, 
+                limite: poteSeleccionado.limite, 
+                cantidad: cantidadPote, 
+                gustos: gustosSeleccionados 
+            };
+            return [...prev, nuevoItem];
+        }
     }
-  });
-
-  // Solo reseteamos si no es una promoción que requiera más pasos
-  if (!poteSeleccionado.id.includes('promo')) {
-    setPoteSeleccionado(null);
-    setGustosSeleccionados([]);
-    setCategoriaGustoAbierta(null);
-    setCantidadPote(1);
-  } else {
-    // Si es promo, dejamos el pote seleccionado pero vaciamos gustos para el siguiente paso
-    setGustosSeleccionados([]);
-    alert("¡Perfecto! Ahora elegí los gustos para la segunda parte de la promo.");
-  }
-};
-
-  }
-
+    });
+if (!poteSeleccionado.id.includes('promo')) {
+      setPoteSeleccionado(null);
+      setGustosSeleccionados([]);
+      setCategoriaGustoAbierta(null);
+      setCantidadPote(1);
+    } else {
+      if (!esSegundaPartePromo) {
+        setGustosSeleccionados([]);
+        setEsSegundaPartePromo(true);
+        alert("¡Perfecto! Ahora elegí los gustos para tu segundo kilo de la promo.");
+      } else {
+        setEsSegundaPartePromo(false);
+        setPoteSeleccionado(null);
+        setGustosSeleccionados([]);
+        setCategoriaGustoAbierta(null);
+        setCantidadPote(1);
+        alert("¡Promo completa agregada al carrito!");
+      }
+    }
+  };
   const agregarExtraAlCarrito = (producto) => {
     setCarrito(prev => {
       const indexExistente = prev.findIndex(item => item.nombre === producto.nombre && item.tipo === 'Extra')
@@ -258,27 +283,20 @@ export default function App() {
     setCarrito(prev => prev.map(item => {
       if (item.id === id) {
         const cantidadActual = item.cantidad || 1
-        return { ...item, cantidad: cantidadActual + delta }
+        return { ...item, cantidad: Math.max(0, cantidadActual + delta) }
       }
       return item
     }).filter(item => item.cantidad > 0))
   }
 
-  const eliminarItem = (id) => {
-    setCarrito(carrito.filter(item => item.id !== id))
-  }
-
   const enviarPedidoWhatsApp = () => {
     if (carrito.length === 0) return;
 
-    // Validación para Delivery
     if (metodoEntrega === 'Delivery') {
       if (!direccion || direccion.trim() === '') {
         alert("¡Por favor, ingresá una dirección para el envío!");
         return;
       }
-      
-      // Validación de monto mínimo (ejemplo: mínimo $15000 para delivery)
       if (calcularTotal() < 15000) {
         alert("Para envíos a domicilio el pedido mínimo es de $15.000");
         return;
@@ -316,70 +334,73 @@ export default function App() {
     if (nombre.includes('Dulce De Leche')) return estaSeleccionado ? 'bg-[#f5ebd7] border-[#c69c6d] text-[#5c3a21]' : 'bg-[#fffdf9] border-[#ede2d0] text-[#5c3a21]'
     if (nombre.includes('Frutilla') || nombre.includes('Mousse') || nombre.includes('Agua')) return estaSeleccionado ? 'bg-[#fff0f5] border-[#f48fb1] text-[#ad1457]' : 'bg-white border-[#fce4ec] text-[#ad1457]'
     return estaSeleccionado ? 'bg-[#eef5e9] border-[#7da068] text-[#3b5323]' : 'bg-white border-[#e8f0e0] text-[#3b5323]'
-  
+  } 
+
+  // =========================================================================
+  // RENDERIZADO VISUAL
+  // =========================================================================
   return (
-    <div class="bg-[#e2ebe6] text-[#2c221e] font-sans min-h-screen flex flex-col justify-between selection:bg-amber-100">
+    <div className="bg-[#e2ebe6] text-[#2c221e] font-sans min-h-screen flex flex-col justify-between selection:bg-amber-100">
       
       {/* HERO BANNER */}
-      <div class="relative h-96 flex items-center justify-center overflow-hidden">
-        <img src={bannerVitrina} alt="Vitrina S´mo" class="absolute inset-0 w-full h-full object-cover scale-105 filter brightness-[0.70] contrast-[1.1]" />
-        <div class="absolute inset-0 bg-gradient-to-t from-[#e2ebe6] via-transparent to-black/30"></div>
-        <div class="relative text-center z-10 px-6 max-w-lg mt-12">
-          <span class="inline-block bg-white/20 backdrop-blur-md text-white text-[10px] tracking-[0.25em] font-black uppercase px-5 py-2 rounded-full mb-4 border border-white/30 shadow-xs">
+      <div className="relative h-96 flex items-center justify-center overflow-hidden">
+        <img src={bannerVitrina} alt="Vitrina S´mo" className="absolute inset-0 w-full h-full object-cover scale-105 filter brightness-[0.70] contrast-[1.1]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#e2ebe6] via-transparent to-black/30"></div>
+        <div className="relative text-center z-10 px-6 max-w-lg mt-12">
+          <span className="inline-block bg-white/20 backdrop-blur-md text-white text-[10px] tracking-[0.25em] font-black uppercase px-5 py-2 rounded-full mb-4 border border-white/30 shadow-xs">
             La dulce tentación
           </span>
-          <h1 class="text-5xl sm:text-7xl font-black tracking-tight text-white drop-shadow-xl uppercase leading-none">
+          <h1 className="text-5xl sm:text-7xl font-black tracking-tight text-white drop-shadow-xl uppercase leading-none">
             Heladería <br /> S´mo
           </h1>
-          <p class="text-sm font-semibold text-slate-100 mt-5 tracking-wide drop-shadow-xs">
+          <p className="text-sm font-semibold text-slate-100 mt-5 tracking-wide drop-shadow-xs">
             Diseñá tu combinación artesanal y enviala directo a producción.
           </p>
         </div>
       </div>
 
       {/* CONTENIDO INTERACTIVO */}
-      <main class="max-w-2xl mx-auto p-5 w-full flex-1 space-y-8 -mt-10 relative z-20">
+      <main className="max-w-2xl mx-auto p-5 w-full flex-1 space-y-8 -mt-10 relative z-20">
         
         {/* PASO 0: LOGÍSTICA */}
-        <div class="bg-white p-2 rounded-2xl border border-[#cbdad0] shadow-xl flex justify-between items-center gap-2">
-          <button onClick={() => setMetodoEntrega('Local')} class={`flex-1 py-3 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${metodoEntrega === 'Local' ? 'bg-[#3b4c41] text-white shadow-md' : 'text-[#7a8c81] hover:bg-[#f4f8f6]'}`}>
+        <div className="bg-white p-2 rounded-2xl border border-[#cbdad0] shadow-xl flex justify-between items-center gap-2">
+          <button onClick={() => setMetodoEntrega('Local')} className={`flex-1 py-3 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${metodoEntrega === 'Local' ? 'bg-[#3b4c41] text-white shadow-md' : 'text-[#7a8c81] hover:bg-[#f4f8f6]'}`}>
             RETIRO EN LOCAL
           </button>
-          <button onClick={() => setMetodoEntrega('Delivery')} class={`flex-1 py-3 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${metodoEntrega === 'Delivery' ? 'bg-[#3b4c41] text-white shadow-md' : 'text-[#7a8c81] hover:bg-[#f4f8f6]'}`}>
+          <button onClick={() => setMetodoEntrega('Delivery')} className={`flex-1 py-3 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${metodoEntrega === 'Delivery' ? 'bg-[#3b4c41] text-white shadow-md' : 'text-[#7a8c81] hover:bg-[#f4f8f6]'}`}>
             ENTREGA
           </button>
         </div>
+        
         {/* Campo de dirección dinámico */}
-{metodoEntrega === 'Delivery' && (
-  <div className="bg-white p-4 rounded-2xl border border-[#cbdad0] shadow-md animate-fadeIn">
-    <label className="block text-xs font-black uppercase text-[#3a4a40] mb-2 tracking-widest">
-      Dirección de entrega
-    </label>
-    <input 
-      type="text" 
-      placeholder="Ej: Av. Siempreviva 742" 
-      value={direccion}
-      onChange={(e) => setDireccion(e.target.value)}
-      className="w-full p-3 border border-[#cbdad0] rounded-xl text-sm focus:border-[#b88645] focus:ring-1 focus:ring-[#b88645] outline-none transition-all"
-    />
-  </div>
-)
-}
+        {metodoEntrega === 'Delivery' && (
+          <div className="bg-white p-4 rounded-2xl border border-[#cbdad0] shadow-md animate-fadeIn">
+            <label className="block text-xs font-black uppercase text-[#3a4a40] mb-2 tracking-widest">
+              Dirección de entrega
+            </label>
+            <input 
+              type="text" 
+              placeholder="Ej: Av. Siempreviva 742" 
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              className="w-full p-3 border border-[#cbdad0] rounded-xl text-sm focus:border-[#b88645] focus:ring-1 focus:ring-[#b88645] outline-none transition-all"
+            />
+          </div>
+        )}
 
         {/* PASO 1: PRESENTACIÓN (Potes) */}
-        <div class="bg-white p-6 rounded-3xl border border-[#cbdad0] shadow-2xl space-y-5">
-          <div class="px-1 space-y-1">
-            <div class="flex items-center gap-3">
-              <span class="h-7 w-7 rounded-full bg-[#b88645] text-white flex items-center justify-center text-sm font-black shadow-xs">1</span>
-              <h2 class="text-sm font-black uppercase tracking-widest text-[#4a5a50]">Elegí tu helado o promo</h2>
+        <div className="bg-white p-6 rounded-3xl border border-[#cbdad0] shadow-2xl space-y-5">
+          <div className="px-1 space-y-1">
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-[#b88645] text-white flex items-center justify-center text-sm font-black shadow-xs">1</span>
+              <h2 className="text-sm font-black uppercase tracking-widest text-[#4a5a50]">Elegí tu helado o promo</h2>
             </div>
-            {/* TEXTO CORREGIDO */}
-            <p class="text-[13px] text-slate-600 font-medium pl-10 leading-snug">
+            <p className="text-[13px] text-slate-600 font-medium pl-10 leading-snug">
               <strong>Armá tus potes de a uno.</strong> Seleccioná el tamaño, desliza hacia abajo para elegir los sabores y por último agregalo al carrito. Luego, si querés, podés sumar más tamaños repitiendo el mismo paso.
             </p>
           </div>
 
-          <div class="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {opcionesPotes.map(pote => {
               const seleccionado = poteSeleccionado?.id === pote.id
               return (
@@ -389,20 +410,20 @@ export default function App() {
                     setPoteSeleccionado(pote); 
                     setGustosSeleccionados([]); 
                     setCategoriaGustoAbierta(null);
-                    setCantidadPote(1); // Resetea cantidad si cambia de pote
+                    setCantidadPote(1);
                   }}
-                  class={`p-4 rounded-2xl text-left transition-all duration-300 flex items-center gap-5 relative border cursor-pointer group shadow-xs ${
+                  className={`p-4 rounded-2xl text-left transition-all duration-300 flex items-center gap-5 relative border cursor-pointer group shadow-xs ${
                     seleccionado 
                       ? 'bg-[#3b4c41] border-[#b88645] text-white shadow-md scale-[1.01] ring-2 ring-[#b88645]/40' 
                       : 'bg-[#516458] border-[#63776b] text-[#f4eee6] hover:border-[#b88645]/50 hover:bg-[#3b4c41]'
                   }`}
                 >
-                  <img src={fotoPotesReal} alt={pote.nombre} class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border border-white/20 shadow-2xs group-hover:scale-105 transition" />
-                  <div class="flex-1 pr-12">
-                    <p class={`font-black text-xs sm:text-sm uppercase tracking-wider ${seleccionado ? 'text-white' : 'text-[#f4eee6]'}`}>{pote.nombre}</p>
-                    <p class={`text-[11px] sm:text-xs font-semibold mt-1 tracking-wide ${seleccionado ? 'text-amber-100/80' : 'text-[#cedad1]'}`}>{pote.detalle}</p>
+                  <img src={fotoPotesReal} alt={pote.nombre} className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border border-white/20 shadow-2xs group-hover:scale-105 transition" />
+                  <div className="flex-1 pr-12">
+                    <p className={`font-black text-xs sm:text-sm uppercase tracking-wider ${seleccionado ? 'text-white' : 'text-[#f4eee6]'}`}>{pote.nombre}</p>
+                    <p className={`text-[11px] sm:text-xs font-semibold mt-1 tracking-wide ${seleccionado ? 'text-amber-100/80' : 'text-[#cedad1]'}`}>{pote.detalle}</p>
                   </div>
-                  <span class={`absolute bottom-4 right-4 font-black text-sm px-3 py-1.5 rounded-lg ${seleccionado ? 'bg-white/10 text-white' : 'bg-black/10 text-[#f1e7d9]'}`}>
+                  <span className={`absolute bottom-4 right-4 font-black text-sm px-3 py-1.5 rounded-lg ${seleccionado ? 'bg-white/10 text-white' : 'bg-black/10 text-[#f1e7d9]'}`}>
                     ${pote.precio}
                   </span>
                 </button>
@@ -413,41 +434,41 @@ export default function App() {
 
         {/* PASO 2: SABORES */}
         {poteSeleccionado && (
-          <div class="space-y-4 animate-fadeIn">
-            <div class="px-1 space-y-1">
-              <div class="flex justify-between items-center">
-                <div class="flex items-center gap-3">
-                  <span class="h-7 w-7 rounded-full bg-[#b88645] text-white flex items-center justify-center text-sm font-black shadow-xs">2</span>
-                  <h2 class="text-sm font-black uppercase tracking-widest text-[#3a4a40]">Elegí tus gustos</h2>
+          <div className="space-y-4 animate-fadeIn">
+            <div className="px-1 space-y-1">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="h-7 w-7 rounded-full bg-[#b88645] text-white flex items-center justify-center text-sm font-black shadow-xs">2</span>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-[#3a4a40]">Elegí tus gustos</h2>
                 </div>
-                <span class="bg-white text-[#b88645] border border-[#cbdad0] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-sm">
+                <span className="bg-white text-[#b88645] border border-[#cbdad0] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-sm">
                   {gustosSeleccionados.length} / {poteSeleccionado.limite}
                 </span>
               </div>
-              <p class="text-sm text-slate-600 font-medium pl-10 leading-snug">
+              <p className="text-sm text-slate-600 font-medium pl-10 leading-snug">
                 Tocá cada opción para ver los sabores y de qué están hechos.
               </p>
             </div>
 
-            <div class="space-y-3">
+            <div className="space-y-3">
               {Object.keys(listadoGustos).map(categoria => {
                 const estaAbierto = categoriaGustoAbierta === categoria;
                 return (
-                  <div key={categoria} class="bg-white rounded-2xl border border-[#cbdad0] shadow-md overflow-hidden transition-all duration-200">
+                  <div key={categoria} className="bg-white rounded-2xl border border-[#cbdad0] shadow-md overflow-hidden transition-all duration-200">
                     <button 
                       onClick={() => setCategoriaGustoAbierta(estaAbierto ? null : categoria)}
-                      class="w-full p-5 text-left flex justify-between items-center transition-colors duration-200 cursor-pointer bg-white hover:bg-[#fafbfc]"
+                      className="w-full p-5 text-left flex justify-between items-center transition-colors duration-200 cursor-pointer bg-white hover:bg-[#fafbfc]"
                     >
-                      <span class="text-sm font-black tracking-wider text-[#3a4a40] font-sans uppercase">
+                      <span className="text-sm font-black tracking-wider text-[#3a4a40] font-sans uppercase">
                         {categoria}
                       </span>
-                      <span class="text-[11px] font-black tracking-widest text-[#7a8c81] uppercase">
+                      <span className="text-[11px] font-black tracking-widest text-[#7a8c81] uppercase">
                         {estaAbierto ? 'CERRAR' : 'VER CATALOGO'}
                       </span>
                     </button>
 
                     {estaAbierto && (
-                      <div class="p-4 bg-[#fbfcfb] grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-[#cbdad0]/40 animate-fadeIn">
+                      <div className="p-4 bg-[#fbfcfb] grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-[#cbdad0]/40 animate-fadeIn">
                         {listadoGustos[categoria].map(gusto => {
                           const estaSeleccionado = gustosSeleccionados.includes(gusto.nombre)
                           const claseEstilo = obtenerEstiloGusto(gusto.nombre, estaSeleccionado)
@@ -456,16 +477,16 @@ export default function App() {
                             <div 
                               key={gusto.nombre}
                               onClick={() => seleccionarGusto(gusto.nombre)}
-                              class={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 relative tracking-wide flex items-center justify-between min-h-[75px] ${claseEstilo} ${
+                              className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 relative tracking-wide flex items-center justify-between min-h-[75px] ${claseEstilo} ${
                                 estaSeleccionado ? 'scale-[1.02] shadow-md' : 'hover:border-gray-400'
                               }`}
                             >
-                              <div class="flex-1 pr-4">
-                                <p class="font-black text-xs sm:text-sm uppercase tracking-wide leading-tight">{gusto.nombre}</p>
-                                <p class={`text-xs mt-1.5 leading-snug font-medium ${estaSeleccionado ? 'opacity-90' : 'text-slate-600'}`}>{gusto.desc}</p>
+                              <div className="flex-1 pr-4">
+                                <p className="font-black text-xs sm:text-sm uppercase tracking-wide leading-tight">{gusto.nombre}</p>
+                                <p className={`text-xs mt-1.5 leading-snug font-medium ${estaSeleccionado ? 'opacity-90' : 'text-slate-600'}`}>{gusto.desc}</p>
                               </div>
                               {estaSeleccionado && (
-                                <span class="bg-[#b88645] text-white h-5 w-5 flex shrink-0 items-center justify-center rounded-full font-black text-xs shadow-sm">✓</span>
+                                <span className="bg-[#b88645] text-white h-5 w-5 flex shrink-0 items-center justify-center rounded-full font-black text-xs shadow-sm">✓</span>
                               )}
                             </div>
                           )
@@ -478,17 +499,17 @@ export default function App() {
             </div>
 
             {/* SECCIÓN NUEVA: CONTROL DE CANTIDAD Y BOTÓN AGREGAR */}
-            <div class="flex gap-3 pt-2">
-              <div class="flex items-center bg-white border border-[#cbdad0] rounded-2xl overflow-hidden shadow-xs h-[60px] w-[110px] shrink-0">
-                <button onClick={() => setCantidadPote(Math.max(1, cantidadPote - 1))} class="flex-1 h-full text-[#a69288] hover:bg-slate-100 font-black text-xl transition-colors cursor-pointer">-</button>
-                <span class="w-8 text-center font-black text-[#3d2e27] text-lg">{cantidadPote}</span>
-                <button onClick={() => setCantidadPote(cantidadPote + 1)} class="flex-1 h-full text-[#7da068] hover:bg-slate-100 font-black text-xl transition-colors cursor-pointer">+</button>
+            <div className="flex gap-3 pt-2">
+              <div className="flex items-center bg-white border border-[#cbdad0] rounded-2xl overflow-hidden shadow-xs h-[60px] w-[110px] shrink-0">
+                <button onClick={() => setCantidadPote(Math.max(1, cantidadPote - 1))} className="flex-1 h-full text-[#a69288] hover:bg-slate-100 font-black text-xl transition-colors cursor-pointer">-</button>
+                <span className="w-8 text-center font-black text-[#3d2e27] text-lg">{cantidadPote}</span>
+                <button onClick={() => setCantidadPote(cantidadPote + 1)} className="flex-1 h-full text-[#7da068] hover:bg-slate-100 font-black text-xl transition-colors cursor-pointer">+</button>
               </div>
 
               <button 
                 onClick={agregarPoteAlCarrito}
                 disabled={gustosSeleccionados.length === 0}
-                class={`flex-1 font-black tracking-widest rounded-2xl shadow-xl transition-all duration-300 uppercase text-sm border ${
+                className={`flex-1 font-black tracking-widest rounded-2xl shadow-xl transition-all duration-300 uppercase text-sm border ${
                   gustosSeleccionados.length > 0 
                     ? 'bg-[#b88645] text-white border-[#a67638] hover:bg-[#a67638] cursor-pointer shadow-[#b88645]/20 scale-[1.01]' 
                     : 'bg-white text-[#ccc2bc] border-[#cbdad0] cursor-not-allowed'
@@ -501,44 +522,44 @@ export default function App() {
         )}
 
         {/* SECCIÓN ADICIONAL: TORTAS Y PALETAS */}
-        <div class="bg-white p-6 rounded-3xl border border-[#cbdad0] shadow-xl space-y-4">
-          <div class="px-1 space-y-1">
-            <div class="flex items-center gap-3">
-              <span class="h-1 w-4 bg-[#516458] rounded-full"></span>
-              <h3 class="text-lg font-black text-[#b88645] uppercase tracking-widest">Pastelería y Adicionales</h3>
+        <div className="bg-white p-6 rounded-3xl border border-[#cbdad0] shadow-xl space-y-4">
+          <div className="px-1 space-y-1">
+            <div className="flex items-center gap-3">
+              <span className="h-1 w-4 bg-[#516458] rounded-full"></span>
+              <h3 className="text-lg font-black text-[#b88645] uppercase tracking-widest">Pastelería y Adicionales</h3>
             </div>
-            <p class="text-sm text-slate-600 font-medium pl-7 leading-snug">
+            <p className="text-sm text-slate-600 font-medium pl-7 leading-snug">
               Tocá cada opción para ver el detalle de nuestras tortas, paletas y extras.
             </p>
           </div>
           
-          <div class="space-y-3">
+          <div className="space-y-3">
             {Object.keys(catalogoExtras).map(categoria => {
               const estaAbierto = categoriaExtraAbierta === categoria;
               return (
-                <div key={categoria} class="bg-[#fafbfc] rounded-2xl border border-slate-200 overflow-hidden transition-all duration-200">
+                <div key={categoria} className="bg-[#fafbfc] rounded-2xl border border-slate-200 overflow-hidden transition-all duration-200">
                   <button 
                     onClick={() => setCategoriaExtraAbierta(estaAbierto ? null : categoria)}
-                    class="w-full p-4 text-left flex justify-between items-center transition-colors duration-200 cursor-pointer hover:bg-slate-100"
+                    className="w-full p-4 text-left flex justify-between items-center transition-colors duration-200 cursor-pointer hover:bg-slate-100"
                   >
-                    <span class="text-[11px] font-black tracking-wider text-[#3a4a40] uppercase">
+                    <span className="text-[11px] font-black tracking-wider text-[#3a4a40] uppercase">
                       {categoria}
                     </span>
-                    <span class="text-[10px] font-black tracking-widest text-[#7a8c81] uppercase">
+                    <span className="text-[10px] font-black tracking-widest text-[#7a8c81] uppercase">
                       {estaAbierto ? '-' : '+'}
                     </span>
                   </button>
 
                   {estaAbierto && (
-                    <div class="p-3 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-200 animate-fadeIn">
+                    <div className="p-3 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-200 animate-fadeIn">
                       {catalogoExtras[categoria].map(extra => (
-                        <div key={extra.id} class="border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-2 shadow-xs">
-                          <div class="flex-1">
-                            <p class="font-black text-xs uppercase tracking-wide text-[#3d2e27] leading-tight">{extra.nombre}</p>
-                            <p class="text-[11px] text-slate-600 mt-1 font-medium leading-snug">{extra.detalle}</p>
-                            <p class="text-xs font-bold text-[#516458] mt-1.5">${extra.precio}</p>
+                        <div key={extra.id} className="border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-2 shadow-xs">
+                          <div className="flex-1">
+                            <p className="font-black text-xs uppercase tracking-wide text-[#3d2e27] leading-tight">{extra.nombre}</p>
+                            <p className="text-[11px] text-slate-600 mt-1 font-medium leading-snug">{extra.detalle}</p>
+                            <p className="text-xs font-bold text-[#516458] mt-1.5">${extra.precio}</p>
                           </div>
-                          <button onClick={() => agregarExtraAlCarrito(extra)} class="h-8 w-8 shrink-0 rounded-lg bg-white border border-[#cbdad0] text-[#b88645] font-black text-lg flex items-center justify-center hover:bg-[#b88645] hover:text-white transition-all shadow-xs cursor-pointer">+</button>
+                          <button onClick={() => agregarExtraAlCarrito(extra)} className="h-8 w-8 shrink-0 rounded-lg bg-white border border-[#cbdad0] text-[#b88645] font-black text-lg flex items-center justify-center hover:bg-[#b88645] hover:text-white transition-all shadow-xs cursor-pointer">+</button>
                         </div>
                       ))}
                     </div>
@@ -551,53 +572,53 @@ export default function App() {
 
         {/* PASO FINAL: CARRITO Y WHATSAPP */}
         {carrito.length > 0 && (
-          <div class="space-y-5 animate-fadeIn">
-            <div class="flex items-center gap-3 px-1">
-              <span class="h-7 w-7 rounded-full bg-[#b88645] text-white flex items-center justify-center text-sm font-black shadow-xs">✓</span>
-              <h2 class="text-sm font-black uppercase tracking-widest text-[#3a4a40]">Tu Pedido</h2>
+          <div className="space-y-5 animate-fadeIn">
+            <div className="flex items-center gap-3 px-1">
+              <span className="h-7 w-7 rounded-full bg-[#b88645] text-white flex items-center justify-center text-sm font-black shadow-xs">✓</span>
+              <h2 className="text-sm font-black uppercase tracking-widest text-[#3a4a40]">Tu Pedido</h2>
             </div>
 
-            <div class="bg-white p-6 rounded-3xl border border-[#cbdad0] shadow-2xl space-y-5">
+            <div className="bg-white p-6 rounded-3xl border border-[#cbdad0] shadow-2xl space-y-5">
               
-              <div class="bg-slate-100/50 p-4 rounded-xl border border-dashed border-slate-300 text-center mb-2">
-                <p class="text-xs font-black text-slate-700 uppercase tracking-widest mb-1">Pago vía Mercado Pago / Transferencia</p>
-                <p class="text-[11px] font-medium text-slate-600">Alias: <span class="font-black text-slate-800">HELADOS.SMO.MP</span></p>
-                <p class="text-[10px] text-slate-500 mt-1 italic">(Realizá el pago y enviá el comprobante junto con el pedido)</p>
+              <div className="bg-slate-100/50 p-4 rounded-xl border border-dashed border-slate-300 text-center mb-2">
+                <p className="text-xs font-black text-slate-700 uppercase tracking-widest mb-1">Pago vía Mercado Pago / Transferencia</p>
+                <p className="text-[11px] font-medium text-slate-600">Alias: <span className="font-black text-slate-800">HELADOS.SMO.MP</span></p>
+                <p className="text-[10px] text-slate-500 mt-1 italic">(Realizá el pago y enviá el comprobante junto con el pedido)</p>
               </div>
 
-              <div class="space-y-3 max-h-72 overflow-y-auto pr-2">
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-2">
                 {carrito.map((item) => (
-                  <div key={item.id} class="p-4 bg-[#fafbfc] border border-[#e2ebe6] rounded-2xl flex justify-between items-center shadow-sm">
-                    <div class="flex-1 pr-3">
-                      <p class="font-black text-[#3d2e27] uppercase tracking-wide text-xs">
-                        {(item.cantidad || 1) > 1 ? <span class="text-[#b88645] mr-1">{item.cantidad || 1}x</span> : ''}
+                  <div key={item.id} className="p-4 bg-[#fafbfc] border border-[#e2ebe6] rounded-2xl flex justify-between items-center shadow-sm">
+                    <div className="flex-1 pr-3">
+                      <p className="font-black text-[#3d2e27] uppercase tracking-wide text-xs">
+                        {(item.cantidad || 1) > 1 ? <span className="text-[#b88645] mr-1">{item.cantidad || 1}x</span> : ''}
                         {item.nombre}
                       </p>
                       {item.gustos && item.gustos.length > 0 && (
-                        <p class="text-xs text-[#8c766c] pl-3 mt-2 font-medium border-l-2 border-[#b88645]/50 leading-relaxed">{item.gustos.join(' • ')}</p>
+                        <p className="text-xs text-[#8c766c] pl-3 mt-2 font-medium border-l-2 border-[#b88645]/50 leading-relaxed">{item.gustos.join(' • ')}</p>
                       )}
                     </div>
                     
                     {/* Botonera de control de cantidad en el carrito */}
-                    <div class="flex flex-col items-end gap-2 ml-2">
-                       <span class="font-black text-sm text-[#516458]">${item.precio * (item.cantidad || 1)}</span>
-                       <div class="flex items-center bg-white border border-[#cbdad0] rounded-lg shadow-xs overflow-hidden">
-                          <button onClick={() => modificarCantidad(item.id, -1)} class="w-8 h-8 bg-slate-50 hover:bg-slate-100 text-[#a69288] hover:text-red-500 font-black text-lg flex items-center justify-center transition-colors cursor-pointer">-</button>
-                          <span class="w-6 text-center text-xs font-black text-[#3d2e27]">{item.cantidad || 1}</span>
-                          <button onClick={() => modificarCantidad(item.id, 1)} class="w-8 h-8 bg-slate-50 hover:bg-slate-100 text-[#7da068] hover:text-[#516458] font-black text-lg flex items-center justify-center transition-colors cursor-pointer">+</button>
+                    <div className="flex flex-col items-end gap-2 ml-2">
+                       <span className="font-black text-sm text-[#516458]">${item.precio * (item.cantidad || 1)}</span>
+                       <div className="flex items-center bg-white border border-[#cbdad0] rounded-lg shadow-xs overflow-hidden">
+                          <button onClick={() => modificarCantidad(item.id, -1)} className="w-8 h-8 bg-slate-50 hover:bg-slate-100 text-[#a69288] hover:text-red-500 font-black text-lg flex items-center justify-center transition-colors cursor-pointer">-</button>
+                          <span className="w-6 text-center text-xs font-black text-[#3d2e27]">{item.cantidad || 1}</span>
+                          <button onClick={() => modificarCantidad(item.id, 1)} className="w-8 h-8 bg-slate-50 hover:bg-slate-100 text-[#7da068] hover:text-[#516458] font-black text-lg flex items-center justify-center transition-colors cursor-pointer">+</button>
                        </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div class="flex justify-between items-center pt-4 border-t-2 border-dashed border-gray-300 px-2">
-                <span class="text-sm font-black uppercase tracking-wider text-[#4a5a50]">Total Final:</span>
-                <span class="text-2xl font-black text-[#b88645] drop-shadow-sm">${calcularTotal()}</span>
+              <div className="flex justify-between items-center pt-4 border-t-2 border-dashed border-gray-300 px-2">
+                <span className="text-sm font-black uppercase tracking-wider text-[#4a5a50]">Total Final:</span>
+                <span className="text-2xl font-black text-[#b88645] drop-shadow-sm">${calcularTotal()}</span>
               </div>
               
-              <button onClick={enviarPedidoWhatsApp} class="w-full bg-[#3b4c41] text-white border border-[#b88645]/50 font-black text-sm tracking-widest uppercase p-5 rounded-2xl shadow-xl hover:bg-[#2d3a31] hover:border-[#b88645] transition-all duration-300 flex justify-center items-center gap-2 cursor-pointer shadow-black/20 scale-[1.01]">
-                ENVIAR PEDIDO Y COMPROBANTE.
+              <button onClick={enviarPedidoWhatsApp} className="w-full bg-[#3b4c41] text-white border border-[#b88645]/50 font-black text-sm tracking-widest uppercase p-5 rounded-2xl shadow-xl hover:bg-[#2d3a31] hover:border-[#b88645] transition-all duration-300 flex justify-center items-center gap-2 cursor-pointer shadow-black/20 scale-[1.01]">
+                ENVIAR PEDIDO Y COMPROBANTE
               </button>
             </div>
           </div>
@@ -606,10 +627,10 @@ export default function App() {
       </main>
 
       {/* FOOTER */}
-      <footer class="bg-black/5 text-[#516458] text-xs p-8 text-center mt-24 border-t border-[#cbdad0]">
-        <p class="font-bold">© 2026 Heladería S´mo. Todos los derechos reservados.</p>
-        <p class="mt-2 font-light">Arquitectura de sistema & UI desarrollada por:</p>
-        <a href="https://wa.me/5491154229565" target="_blank" rel="noopener noreferrer" class="inline-block mt-4 text-[#b88645] font-black bg-white hover:bg-[#fafbfa] px-5 py-2.5 rounded-xl border border-[#cbdad0] shadow-3xs transition-all duration-300 hover:scale-[1.02]">Fernando Santos | Systems Analyst</a>
+      <footer className="bg-black/5 text-[#516458] text-xs p-8 text-center mt-24 border-t border-[#cbdad0]">
+        <p className="font-bold">© 2026 Heladería S´mo. Todos los derechos reservados.</p>
+        <p className="mt-2 font-light">Arquitectura de sistema & UI desarrollada por:</p>
+        <a href="https://wa.me/5491154229565" target="_blank" rel="noopener noreferrer" className="inline-block mt-4 text-[#b88645] font-black bg-white hover:bg-[#fafbfa] px-5 py-2.5 rounded-xl border border-[#cbdad0] shadow-3xs transition-all duration-300 hover:scale-[1.02]">Fernando Santos | Systems Analyst</a>
       </footer>
 
     </div>
