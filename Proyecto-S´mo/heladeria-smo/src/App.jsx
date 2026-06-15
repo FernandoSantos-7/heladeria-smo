@@ -181,41 +181,52 @@ export default function App() {
   }
 
   const agregarPoteAlCarrito = () => {
-    if (!poteSeleccionado || gustosSeleccionados.length === 0) return
-    
-    setCarrito(prev => {
-      const gustosStr = [...gustosSeleccionados].sort().join(',')
-      const indexExistente = prev.findIndex(item => 
-        item.nombre === poteSeleccionado.nombre && 
-        item.tipo === 'Pote' &&
-        [...item.gustos].sort().join(',') === gustosStr
-      )
+  if (!poteSeleccionado || gustosSeleccionados.length === 0) return;
 
-      if (indexExistente !== -1) {
-        const nuevoCarrito = [...prev]
-        nuevoCarrito[indexExistente] = { 
-          ...nuevoCarrito[indexExistente], 
-          cantidad: (nuevoCarrito[indexExistente].cantidad || 1) + cantidadPote 
-        }
-        return nuevoCarrito
-      } else {
-        const nuevoItem = { 
-          id: Date.now().toString() + Math.random().toString(), 
-          tipo: 'Pote', 
-          nombre: poteSeleccionado.nombre, 
-          precio: poteSeleccionado.precio, 
-          cantidad: cantidadPote, 
-          gustos: gustosSeleccionados 
-        }
-        return [...prev, nuevoItem]
-      }
-    })
+  // NUEVA LÓGICA: Si es la promo 1/4+1/4, verificamos si ya completamos los gustos
+  // (Esto requiere un pequeño ajuste que te pediré hacer más adelante)
+  
+  setCarrito(prev => {
+    const gustosStr = [...gustosSeleccionados].sort().join(',');
+    const indexExistente = prev.findIndex(item => 
+      item.nombre === poteSeleccionado.nombre && 
+      item.tipo === 'Pote' &&
+      [...item.gustos].sort().join(',') === gustosStr
+    );
 
-    // Resetear todo después de agregar
-    setPoteSeleccionado(null)
-    setGustosSeleccionados([])
-    setCategoriaGustoAbierta(null)
-    setCantidadPote(1) // Vuelve el selector a 1
+    if (indexExistente !== -1) {
+      const nuevoCarrito = [...prev];
+      nuevoCarrito[indexExistente] = { 
+        ...nuevoCarrito[indexExistente], 
+        cantidad: (nuevoCarrito[indexExistente].cantidad || 1) + cantidadPote 
+      };
+      return nuevoCarrito;
+    } else {
+      const nuevoItem = { 
+        id: Date.now().toString() + Math.random().toString(), 
+        tipo: 'Pote', 
+        nombre: poteSeleccionado.nombre, 
+        precio: poteSeleccionado.precio, 
+        cantidad: cantidadPote, 
+        gustos: gustosSeleccionados 
+      };
+      return [...prev, nuevoItem];
+    }
+  });
+
+  // Solo reseteamos si no es una promoción que requiera más pasos
+  if (!poteSeleccionado.id.includes('promo')) {
+    setPoteSeleccionado(null);
+    setGustosSeleccionados([]);
+    setCategoriaGustoAbierta(null);
+    setCantidadPote(1);
+  } else {
+    // Si es promo, dejamos el pote seleccionado pero vaciamos gustos para el siguiente paso
+    setGustosSeleccionados([]);
+    alert("¡Perfecto! Ahora elegí los gustos para la segunda parte de la promo.");
+  }
+};
+
   }
 
   const agregarExtraAlCarrito = (producto) => {
@@ -257,38 +268,48 @@ export default function App() {
     setCarrito(carrito.filter(item => item.id !== id))
   }
 
-  // Cálculo TOTAL blindado
-  const calcularTotal = () => {
-    return carrito.reduce((acc, item) => acc + (item.precio * (item.cantidad || 1)), 0)
-  }
-
   const enviarPedidoWhatsApp = () => {
-    if (carrito.length === 0) return
+    if (carrito.length === 0) return;
 
-    let detalleTexto = ''
+    // Validación para Delivery
+    if (metodoEntrega === 'Delivery') {
+      if (!direccion || direccion.trim() === '') {
+        alert("¡Por favor, ingresá una dirección para el envío!");
+        return;
+      }
+      
+      // Validación de monto mínimo (ejemplo: mínimo $15000 para delivery)
+      if (calcularTotal() < 15000) {
+        alert("Para envíos a domicilio el pedido mínimo es de $15.000");
+        return;
+      }
+    }
+
+    let detalleTexto = '';
     carrito.forEach((item) => {
       const cant = item.cantidad || 1;
       if (item.tipo === 'Pote') {
-        detalleTexto += `[${cant}x] ${item.nombre} ($${item.precio * cant}):\n`
-        item.gustos.forEach(g => { detalleTexto += `   - ${g}\n` })
+        detalleTexto += `[${cant}x] ${item.nombre} ($${item.precio * cant}):\n`;
+        item.gustos.forEach(g => { detalleTexto += `   - ${g}\n`; });
       } else {
-        detalleTexto += `[${cant}x] ${item.nombre} ($${item.precio * cant})\n`
+        detalleTexto += `[${cant}x] ${item.nombre} ($${item.precio * cant})\n`;
       }
-    })
+    });
 
     const mensaje = `*NUEVO PEDIDO DESDE LA APP*\n` +
                     `============================\n\n` +
-                    `*ENTREGA:* ${metodoEntrega === 'Delivery' ? 'Mandar por Delivery' : 'Paso a Retirar por Local'}\n\n` +
+                    `*ENTREGA:* ${metodoEntrega === 'Delivery' ? 'Entrega a domicilio' : 'Paso a Retirar por Local'}\n` +
+                    (metodoEntrega === 'Delivery' ? `*DIRECCIÓN:* ${direccion}\n\n` : '\n') +
                     `*DETALLE DE COMPRA:*\n${detalleTexto}\n` +
                     `============================\n` +
                     `*TOTAL ABONADO: $${calcularTotal()}*\n` +
                     `============================\n\n` +
                     `*MÉTODO DE PAGO: Mercado Pago / Transferencia*\n` +
-                    `_(Te adjunto el comprobante de pago a continuación)_`
+                    `_(Te adjunto el comprobante de pago a continuación)_`;
 
-    const url = `https://wa.me/5491154229565?text=${encodeURIComponent(mensaje)}`
-    window.open(url, '_blank')
-  }
+    const url = `https://wa.me/5491154229565?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+  };
 
   const obtenerEstiloGusto = (nombre, estaSeleccionado) => {
     if (nombre.includes('Chocolate')) return estaSeleccionado ? 'bg-[#f7e6db] border-[#b87333] text-[#6a3b1e]' : 'bg-[#fffcfb] border-[#f3e1d3] text-[#6a3b1e]'
@@ -329,6 +350,22 @@ export default function App() {
             ENTREGA
           </button>
         </div>
+        {/* Campo de dirección dinámico */}
+{metodoEntrega === 'Delivery' && (
+  <div className="bg-white p-4 rounded-2xl border border-[#cbdad0] shadow-md animate-fadeIn">
+    <label className="block text-xs font-black uppercase text-[#3a4a40] mb-2 tracking-widest">
+      Dirección de entrega
+    </label>
+    <input 
+      type="text" 
+      placeholder="Ej: Av. Siempreviva 742" 
+      value={direccion}
+      onChange={(e) => setDireccion(e.target.value)}
+      className="w-full p-3 border border-[#cbdad0] rounded-xl text-sm focus:border-[#b88645] focus:ring-1 focus:ring-[#b88645] outline-none transition-all"
+    />
+  </div>
+)
+}
 
         {/* PASO 1: PRESENTACIÓN (Potes) */}
         <div class="bg-white p-6 rounded-3xl border border-[#cbdad0] shadow-2xl space-y-5">
@@ -561,7 +598,7 @@ export default function App() {
               </div>
               
               <button onClick={enviarPedidoWhatsApp} class="w-full bg-[#3b4c41] text-white border border-[#b88645]/50 font-black text-sm tracking-widest uppercase p-5 rounded-2xl shadow-xl hover:bg-[#2d3a31] hover:border-[#b88645] transition-all duration-300 flex justify-center items-center gap-2 cursor-pointer shadow-black/20 scale-[1.01]">
-                ENVIAR PEDIDO Y COMPROBANTE
+                ENVIAR PEDIDO Y COMPROBANTE.
               </button>
             </div>
           </div>
@@ -577,5 +614,4 @@ export default function App() {
       </footer>
 
     </div>
-  )
-}
+  );
