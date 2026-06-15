@@ -316,8 +316,7 @@ export default function App() {
     if (nombre.includes('Dulce De Leche')) return estaSeleccionado ? 'bg-[#f5ebd7] border-[#c69c6d] text-[#5c3a21]' : 'bg-[#fffdf9] border-[#ede2d0] text-[#5c3a21]'
     if (nombre.includes('Frutilla') || nombre.includes('Mousse') || nombre.includes('Agua')) return estaSeleccionado ? 'bg-[#fff0f5] border-[#f48fb1] text-[#ad1457]' : 'bg-white border-[#fce4ec] text-[#ad1457]'
     return estaSeleccionado ? 'bg-[#eef5e9] border-[#7da068] text-[#3b5323]' : 'bg-white border-[#e8f0e0] text-[#3b5323]'
-  }
-
+  
   return (
     <div class="bg-[#e2ebe6] text-[#2c221e] font-sans min-h-screen flex flex-col justify-between selection:bg-amber-100">
       
@@ -615,3 +614,4 @@ export default function App() {
 
     </div>
   );
+}
