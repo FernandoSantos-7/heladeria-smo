@@ -1,22 +1,27 @@
-import { useState } from 'react'
+import { useHeladeria } from './hooks/useHeladeria';
+// Mantén los otros imports que ya tenías (bannerVitrina, etc.)
+
+export default function App() {
+  const { 
+    poteSeleccionado, setPoteSeleccionado,
+    gustosSeleccionados, setGustosSeleccionados,
+    carrito, setCarrito,
+    categoriaGustoAbierta, setCategoriaGustoAbierta,
+    categoriaExtraAbierta, setCategoriaExtraAbierta,
+    cantidadPote, setCantidadPote,
+    esSegundaPartePromo, setEsSegundaPartePromo,
+    promoTemporal, setPromoTemporal,
+    metodoEntrega, setMetodoEntrega,
+    zona, setZona,
+    calle, setCalle
+  } = useHeladeria();
+
+  // ... acá abajo sigue todo tu código HTML y funciones igual que siempre
 // Fotos reales desde tu carpeta assets
 import bannerVitrina from './assets/vitrina-principal-1.jpeg'
 import fotoPotesReal from './assets/potes-helado.jpeg'
 
-export default function App() {
-  const [poteSeleccionado, setPoteSeleccionado] = useState(null)
-  const [gustosSeleccionados, setGustosSeleccionados] = useState([])
-  const [carrito, setCarrito] = useState([])
-  
-  // Controles de interfaz
-  const [categoriaGustoAbierta, setCategoriaGustoAbierta] = useState(null)
-  const [categoriaExtraAbierta, setCategoriaExtraAbierta] = useState(null)
-  const [cantidadPote, setCantidadPote] = useState(1)
-  const [esSegundaPartePromo, setEsSegundaPartePromo] = useState(false);
-  
-  // LOGÍSTICA
-  const [metodoEntrega, setMetodoEntrega] = useState('Local')
-  const [direccion, setDireccion] = useState('') // ¡Agregado!
+
 
   // =========================================================================
   // 1. POTES
@@ -185,75 +190,89 @@ export default function App() {
     }
   }
 
-  const agregarPoteAlCarrito = () => {
-    if (!poteSeleccionado || gustosSeleccionados.length === 0) return;
+ const agregarPoteAlCarrito = () => {
+  if (!poteSeleccionado || gustosSeleccionados.length === 0) return;
 
-    setCarrito(prev => {
-      const gustosStr = [...gustosSeleccionados].sort().join(',');
-      const indexExistente = prev.findIndex(item => 
-        item.nombre === poteSeleccionado.nombre && 
-        item.tipo === 'Pote' &&
-        [...item.gustos].sort().join(',') === gustosStr
-      );
-
-      if (indexExistente !== -1) {
-        const nuevoCarrito = [...prev];
-        nuevoCarrito[indexExistente] = { 
-          ...nuevoCarrito[indexExistente], 
-          cantidad: (nuevoCarrito[indexExistente].cantidad || 1) + cantidadPote 
+  // =======================================================
+  // LÓGICA ESPECIAL PARA PROMOS (Requiere 2 pasos)
+  // =======================================================
+  if (poteSeleccionado.id.includes('promo')) {
+    if (!esSegundaPartePromo) {
+      // PASO 1: Guardamos los gustos y frenamos la ejecución acá.
+      // ¡NO mandamos nada al carrito todavía!
+      setPromoTemporal(gustosSeleccionados);
+      setEsSegundaPartePromo(true);
+      setGustosSeleccionados([]);
+      setCategoriaGustoAbierta(null);
+      alert("¡Perfecto! Ahora elegí los gustos para tu segundo pote de la promo.");
+      return; 
+    } else {
+      // PASO 2: Unimos los gustos del Paso 1 con los actuales
+      const gustosCompletos = [...promoTemporal, "--- 2do Pote ---", ...gustosSeleccionados];
+      
+      setCarrito(prev => {
+        const nuevoItem = {
+          id: Date.now().toString(),
+          tipo: 'Pote',
+          nombre: poteSeleccionado.nombre,
+          precio: poteSeleccionado.precio,
+          cantidad: cantidadPote,
+          gustos: gustosCompletos
         };
-        return nuevoCarrito;
-     } else {
-        // Buscamos si ya existe una promo incompleta en el carrito
-        const indexPromoPendiente = prev.findIndex(item => 
-            item.tipo === 'Pote' && 
-            item.nombre === poteSeleccionado.nombre && 
-            item.gustos.length < (poteSeleccionado.limite || 4)
-        );
+        return [...prev, nuevoItem];
+      });
 
-        if (indexPromoPendiente !== -1) {
-            // Si existe, le sumamos los gustos nuevos al mismo item
-            const nuevoCarrito = [...prev];
-            nuevoCarrito[indexPromoPendiente] = {
-                ...nuevoCarrito[indexPromoPendiente],
-                gustos: [...nuevoCarrito[indexPromoPendiente].gustos, ...gustosSeleccionados]
-            };
-            return nuevoCarrito;
-        } else {
-            // Si no existe, creamos el item nuevo normalmente
-            const nuevoItem = { 
-                id: Date.now().toString() + Math.random().toString(), 
-                tipo: 'Pote', 
-                nombre: poteSeleccionado.nombre, 
-                precio: poteSeleccionado.precio, 
-                limite: poteSeleccionado.limite, 
-                cantidad: cantidadPote, 
-                gustos: gustosSeleccionados 
-            };
-            return [...prev, nuevoItem];
-        }
-    }
-    });
-if (!poteSeleccionado.id.includes('promo')) {
+      // Limpiamos la máquina de estados
+      setEsSegundaPartePromo(false);
+      setPromoTemporal(null);
       setPoteSeleccionado(null);
       setGustosSeleccionados([]);
       setCategoriaGustoAbierta(null);
       setCantidadPote(1);
-    } else {
-      if (!esSegundaPartePromo) {
-        setGustosSeleccionados([]);
-        setEsSegundaPartePromo(true);
-        alert("¡Perfecto! Ahora elegí los gustos para tu segundo kilo de la promo.");
-      } else {
-        setEsSegundaPartePromo(false);
-        setPoteSeleccionado(null);
-        setGustosSeleccionados([]);
-        setCategoriaGustoAbierta(null);
-        setCantidadPote(1);
-        alert("¡Promo completa agregada al carrito!");
-      }
+      alert("¡Promo completa agregada al carrito!");
+      return;
     }
-  };
+  }
+
+  // =======================================================
+  // LÓGICA NORMAL PARA POTES INDIVIDUALES
+  // =======================================================
+  setCarrito(prev => {
+    const gustosStr = [...gustosSeleccionados].sort().join(',');
+    const indexExistente = prev.findIndex(item => 
+      item.nombre === poteSeleccionado.nombre && 
+      item.tipo === 'Pote' &&
+      [...item.gustos].sort().join(',') === gustosStr
+    );
+
+    if (indexExistente !== -1) {
+      // Si el pote es exactamente igual, solo sumamos cantidad
+      const nuevoCarrito = [...prev];
+      nuevoCarrito[indexExistente] = { 
+        ...nuevoCarrito[indexExistente], 
+        cantidad: (nuevoCarrito[indexExistente].cantidad || 1) + cantidadPote 
+      };
+      return nuevoCarrito;
+    } else {
+      // Si es un pote nuevo, lo creamos
+      const nuevoItem = { 
+        id: Date.now().toString(), 
+        tipo: 'Pote', 
+        nombre: poteSeleccionado.nombre, 
+        precio: poteSeleccionado.precio, 
+        cantidad: cantidadPote, 
+        gustos: gustosSeleccionados 
+      };
+      return [...prev, nuevoItem];
+    }
+  });
+
+  // Limpieza general
+  setPoteSeleccionado(null);
+  setGustosSeleccionados([]);
+  setCategoriaGustoAbierta(null);
+  setCantidadPote(1);
+};
   const agregarExtraAlCarrito = (producto) => {
     setCarrito(prev => {
       const indexExistente = prev.findIndex(item => item.nombre === producto.nombre && item.tipo === 'Extra')
@@ -289,12 +308,13 @@ if (!poteSeleccionado.id.includes('promo')) {
     }).filter(item => item.cantidad > 0))
   }
 
-  const enviarPedidoWhatsApp = () => {
+ const enviarPedidoWhatsApp = () => {
     if (carrito.length === 0) return;
 
     if (metodoEntrega === 'Delivery') {
-      if (!direccion || direccion.trim() === '') {
-        alert("¡Por favor, ingresá una dirección para el envío!");
+      // Ahora validamos que haya elegido zona Y escrito la calle
+      if (!zona || !calle || calle.trim() === '') {
+        alert("¡Por favor, seleccioná tu zona e ingresá tu calle y altura!");
         return;
       }
       if (calcularTotal() < 15000) {
@@ -317,7 +337,8 @@ if (!poteSeleccionado.id.includes('promo')) {
     const mensaje = `*NUEVO PEDIDO DESDE LA APP*\n` +
                     `============================\n\n` +
                     `*ENTREGA:* ${metodoEntrega === 'Delivery' ? 'Entrega a domicilio' : 'Paso a Retirar por Local'}\n` +
-                    (metodoEntrega === 'Delivery' ? `*DIRECCIÓN:* ${direccion}\n\n` : '\n') +
+                    // Acá le pasamos la zona y la calle al de la moto:
+                    (metodoEntrega === 'Delivery' ? `*DIRECCIÓN:* ${calle} (${zona})\n\n` : '\n') +
                     `*DETALLE DE COMPRA:*\n${detalleTexto}\n` +
                     `============================\n` +
                     `*TOTAL ABONADO: $${calcularTotal()}*\n` +
@@ -372,19 +393,41 @@ if (!poteSeleccionado.id.includes('promo')) {
           </button>
         </div>
         
-        {/* Campo de dirección dinámico */}
+      {/* Campo de dirección dinámico por Zonas */}
         {metodoEntrega === 'Delivery' && (
-          <div className="bg-white p-4 rounded-2xl border border-[#cbdad0] shadow-md animate-fadeIn">
-            <label className="block text-xs font-black uppercase text-[#3a4a40] mb-2 tracking-widest">
-              Dirección de entrega
-            </label>
-            <input 
-              type="text" 
-              placeholder="Ej: Av. Siempreviva 742" 
-              value={direccion}
-              onChange={(e) => setDireccion(e.target.value)}
-              className="w-full p-3 border border-[#cbdad0] rounded-xl text-sm focus:border-[#b88645] focus:ring-1 focus:ring-[#b88645] outline-none transition-all"
-            />
+          <div className="bg-white p-4 rounded-2xl border border-[#cbdad0] shadow-md animate-fadeIn space-y-4">
+            
+            <div>
+              <label className="block text-xs font-black uppercase text-[#3a4a40] mb-2 tracking-widest">
+                Zona de entrega
+              </label>
+              <select 
+                value={zona} 
+                onChange={(e) => setZona(e.target.value)}
+                className="w-full p-3 border border-[#cbdad0] rounded-xl text-sm focus:border-[#b88645] outline-none transition-all bg-white text-slate-700 font-medium"
+              >
+                <option value="">Seleccioná tu zona...</option>
+                <option value="Tapiales Centro">Tapiales (Centro)</option>
+                <option value="Aldo Bonzi">Aldo Bonzi</option>
+                <option value="Crovara">Av. Crovara (Hasta 4 cuadras pasando la vía)</option>
+              </select>
+            </div>
+
+            {/* Solo mostramos la calle si ya eligió una zona permitida */}
+            {zona && (
+              <div className="animate-fadeIn">
+                <label className="block text-xs font-black uppercase text-[#3a4a40] mb-2 tracking-widest">
+                  Calle y Altura Exacta
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: Boulogne Sur Mer 123" 
+                  value={calle}
+                  onChange={(e) => setCalle(e.target.value)}
+                  className="w-full p-3 border border-[#cbdad0] rounded-xl text-sm focus:border-[#b88645] outline-none transition-all"
+                />
+              </div>
+            )}
           </div>
         )}
 
