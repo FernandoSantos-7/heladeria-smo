@@ -1,5 +1,6 @@
 import { useHeladeria } from './hooks/useHeladeria';
-// Mantén los otros imports que ya tenías (bannerVitrina, etc.)
+import bannerVitrina from './assets/vitrina-principal-1.jpeg';
+import fotoPotesReal from './assets/potes-helado.jpeg';
 
 export default function App() {
   const { 
@@ -13,15 +14,13 @@ export default function App() {
     promoTemporal, setPromoTemporal,
     metodoEntrega, setMetodoEntrega,
     zona, setZona,
-    calle, setCalle
+    calle, setCalle,
+    total 
   } = useHeladeria();
 
-  // ... acá abajo sigue todo tu código HTML y funciones igual que siempre
-// Fotos reales desde tu carpeta assets
-import bannerVitrina from './assets/vitrina-principal-1.jpeg'
-import fotoPotesReal from './assets/potes-helado.jpeg'
-
-
+  const calcularTotal = () => {
+    return carrito.reduce((acc, item) => acc + (item.precio * (item.cantidad || 1)), 0);
+  };
 
   // =========================================================================
   // 1. POTES
@@ -172,9 +171,7 @@ import fotoPotesReal from './assets/potes-helado.jpeg'
   // =========================================================================
   // FUNCIONES DE CARRITO Y LOGÍSTICA
   // =========================================================================
-  const calcularTotal = () => {
-    return carrito.reduce((total, item) => total + (item.precio * (item.cantidad || 1)), 0);
-  };
+  
 
   const seleccionarGusto = (nombreGusto) => {
     if (!poteSeleccionado) return
