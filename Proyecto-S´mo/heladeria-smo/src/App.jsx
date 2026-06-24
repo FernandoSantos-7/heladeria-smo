@@ -358,7 +358,7 @@ export default function App() {
   // RENDERIZADO VISUAL
   // =========================================================================
   return (
-    <div className="bg-[#e2ebe6] text-[#2c221e] font-sans min-h-screen flex flex-col justify-between selection:bg-amber-100">
+    <div className="bg-watermark bg-[#e2ebe6] text-[#2c221e] font-sans min-h-screen flex flex-col justify-between selection:bg-amber-100">
       
       {/* HERO BANNER */}
       <div className="relative h-96 flex items-center justify-center overflow-hidden">
